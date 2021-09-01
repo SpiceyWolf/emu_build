@@ -1,0 +1,302 @@
+name: N64 Builder
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+  push:
+
+jobs:
+  update-modules:
+    runs-on: ubuntu-latest
+
+    outputs:
+      output1: ${{ steps.update.outputs.need_rebuild }}
+
+    steps:
+      - name: Initialize repository
+        uses: actions/checkout@v2
+        with:
+          ref: "main"
+          persist-credentials: true
+          fetch-depth: 0
+      
+      - id: update
+        name: Check for updates
+        run: |
+          # Makes sure any pre-installed sub-modules are updated passively
+          git submodule update --init --recursive --checkout --quiet
+          
+          # Ensure we have the directory for the sub-modules
+          echo "Checking for N64 repository..."
+          if [ -d "N64" ]; then
+            echo "Found repository. Beginning operations..."
+          else
+            echo "Directory not found, populating with modules..."
+            mkdir "N64"
+          fi; cd "N64"
+
+          # Declare the repositories in case we need to pull them
+          repos=(
+            "https://gitlab.com/crossemu/emulators/mupen64plus-core"
+            "https://github.com/mupen64plus/mupen64plus-audio-sdl"
+            "https://github.com/mupen64plus/mupen64plus-input-sdl"
+
+            "https://github.com/mupen64plus/mupen64plus-rsp-cxd4"
+            "https://github.com/mupen64plus/mupen64plus-rsp-hle"
+            "https://github.com/mupen64plus/mupen64plus-rsp-z64"
+
+            "https://github.com/mupen64plus/mupen64plus-video-arachnoid"
+            "https://github.com/mupen64plus/mupen64plus-video-glide64mk2"
+            "https://github.com/mupen64plus/mupen64plus-video-rice"
+            "https://github.com/mupen64plus/mupen64plus-video-z64"
+
+            "https://github.com/gonetz/GLideN64"
+            "https://github.com/ata4/angrylion-rdp-plus"
+          )
+
+          # Declare the module suffix's that will be in folder names
+          modules=(
+            "core" "audio-sdl" "input-sdl"
+            "rsp-cxd4-sse2" "rsp-hle" "rsp-z64"
+            "video-arachnoid" "video-glide64mk2" "video-rice" "video-z64"
+            "video-gliden64" "video-angrylion-plus"
+          )
+
+          # A check for added modules because they arent detect in diff
+          ADDED_MODULES=false
+          
+          # Loop all the repos and add or update sub-modules
+          for ((i=0;i<${#modules[@]};i++)); do
+            module=${modules[$i]}
+
+            echo "Checking mupen64plus-$module"
+            if [ -d "mupen64plus-$module" ]; then
+              # Module found, perform an update
+              cd "mupen64plus-$module"
+              git pull origin master
+              cd ".."
+            else
+              # Module not found, so add it
+              git submodule add "${repos[$i]}" "mupen64plus-$module"
+              ADDED_MODULE=true
+            fi
+          done
+
+          echo "Entering repository root"
+          cd ".."
+          
+          # Check for any updates or additions to modules
+          echo "Comparing differences - Was there an update?"
+          LOGS="$(git diff --ignore-submodules=dirty)"
+
+          if [ "$LOGS" == "" ] && [ ! $ADDED_MODULE ]; then
+            # We were up-to-date
+            echo "All files were already up to date!"
+            echo "::set-output name=need_rebuild::0"
+          else
+            # There were updates
+            echo "Updates occured! Triggering rebuild soon."
+              
+            # Print the change results
+            echo "Listing changelog..."
+            echo "$LOGS"
+            echo "::set-output name=need_rebuild::1"
+          fi
+          
+      - name: Commit & push packages
+        uses: actions-js/push@master
+        with:
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          message: "Added or updated N64 sub-modules."
+
+  build-unix:
+    needs: update-modules
+    if: (needs.update-modules.outputs.output1 == 1 || github.event_name == 'workflow_dispatch')
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include: [
+          { os: ubuntu-latest, ext: "so" },
+          { os: macos-latest, ext: "dylib" }
+        ]
+        
+    runs-on: ${{matrix.os}}
+
+    steps:      
+      - name: Initialize repository
+        uses: actions/checkout@v2
+        with:
+          ref: main
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Setup installation dependencies
+        run: |
+          if ${{runner.os == 'linux'}}; then
+            sudo apt-get -qq update
+            sudo apt-get -y install build-essential cmake libglew-dev libsdl2-dev
+            sudo apt-get -y install freeglut3-dev nasm libspeexdsp-dev libsamplerate-dev libboost-all-dev
+          elif ${{runner.os == 'macos'}}; then
+            brew update
+            brew install cmake glew sdl2 sdl2_net freeglut nasm speexdsp libsamplerate boost
+
+            SOURCE=/Library/Developer/CommandLineTools/SDKs
+            TARGET=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
+          
+            for FILE in $(ls $SOURCE); do
+              echo $FILE
+              if [ ! -f "$TARGET/$FILE" ]; then
+                ln -s "$SOURCE/$FILE" "$TARGET/$FILE"
+              fi
+            done
+          fi
+
+      - name: Initializing submodules and creating temporary workspace
+        run: |
+          git submodule update --init --recursive --checkout --quiet
+
+          echo "Confirm we have a bin directory..."
+          if [ ! -d "bin" ]; then
+            mkdir "bin"
+          fi
+          if [ ! -d "bin/N64" ]; then
+            mkdir "bin/N64"
+          fi
+
+          echo "Making temporary repository to create packages in..."
+          mkdir "N64/tmp"
+          mkdir "N64/tmp/consoles"
+          mkdir "N64/tmp/consoles/n64"
+          mkdir "N64/tmp/consoles/n64/emulator"
+
+          # Define a reuseable function
+          echo "
+            LIB=\"\$1\"
+            BIN=\"\$2.${{matrix.ext}}\"
+            cd \"N64/\$LIB/projects/unix\"
+            make all
+            cp \"\$BIN\" \"../../../tmp/consoles/n64/emulator/\$BIN\"
+          " >> N64/tmp/build_plugin.sh
+
+      - name: Building mupen64plus-core
+        run: |
+          sh N64/tmp/build_plugin.sh "mupen64plus-core" "mupen64plus"
+          
+      - name: Building mupen64plus-audio-sdl
+        run: |
+          LIB="mupen64plus-audio-sdl"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-input-sdl
+        run: |
+          LIB="mupen64plus-input-sdl"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-rsp-cxd4-sse2
+        run: |
+          LIB="mupen64plus-rsp-cxd4-sse2"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-rsp-hle
+        run: |
+          LIB="mupen64plus-rsp-hle"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-rsp-z64
+        run: |
+          LIB="mupen64plus-rsp-z64"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-arachnoid
+        run: |
+          if ${{runner.os == 'macos'}}; then exit 0; fi
+          LIB="mupen64plus-video-arachnoid"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-glide64mk2
+        run: |
+          if ${{runner.os == 'macos'}}; then exit 0; fi
+          LIB="mupen64plus-video-glide64mk2"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-rice
+        run: |
+          LIB="mupen64plus-video-rice"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-z64
+        run: |
+          LIB="mupen64plus-video-z64"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-gliden64
+        run: |
+          LIB="mupen64plus-video-gliden64"
+          BIN="$LIB.${{matrix.ext}}"
+          cd "N64/$LIB/projects/cmake"
+          cmake -G "Unix Makefiles" -DMUPENPLUSAPI=On "../../src/"
+          make
+          cp "plugin/Release/mupen64plus-video-GLideN64.${{matrix.ext}}" "../../../tmp/consoles/n64/emulator/$BIN"
+          
+      - name: Building mupen64plus-video-angrylion-plus
+        run: |
+          LIB="mupen64plus-video-angrylion-plus"
+          BIN="$LIB.${{matrix.ext}}"
+          mkdir "N64/$LIB/build"
+          cd "N64/$LIB/build"
+          cmake -G "Unix Makefiles" ".."
+          make
+          cp "$BIN" "../../tmp/consoles/n64/emulator/$BIN"
+
+      - name: Auditing files
+        run: |
+          ls "N64/tmp/consoles/n64/emulator"
+
+      - name: Cloning data folder contents
+        run: |
+          cp -a "N64/mupen64plus-core/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-input-sdl/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-video-rice/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-video-glide64mk2/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-video-glide64mk2/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-video-gliden64/ini/." "N64/tmp/consoles/n64/emulator/"
+      
+      - name: Auditing new file collection
+        run: |
+          ls "N64/tmp/consoles/n64/emulator"
+    
+      - name: Generate package
+        run: |
+          cd "N64/tmp"
+
+          if ${{runner.os == 'linux'}}; then
+            tar -czf "../../bin/N64/linux.tar.gz" "consoles"
+          elif ${{runner.os == 'macos'}}; then
+            zip -r "../../bin/N64/macos.zip" "consoles"
+          fi
+
+      - name: Cleaning up files
+        run: |
+          rm -r "N64/tmp"
+
+      - name: Pull and Stage changes
+        run: |
+          if ${{runner.os == 'linux'}}; then
+            FI="bin/N64/linux.tar.gz"
+          elif ${{runner.os == 'macos'}}; then
+            FI="bin/N64/macos.zip"
+          fi
+            
+          git add "$FI"
+          git stash
+          git pull --rebase
+          git stash pop
+          git checkout --ours -- "$FI"
+
+      - name: Commit & push package
+        uses: actions-js/push@master
+        with:
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          message: "Updated N64 packages."
