@@ -24,7 +24,7 @@ jobs:
       - id: update
         name: Check for updates
         run: |
-          # Recommended fix by git
+          # Recommended config by git
           git config pull.rebase true
           
           # Makes sure any pre-installed sub-modules are updated passively
