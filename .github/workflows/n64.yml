@@ -24,8 +24,10 @@ jobs:
       - id: update
         name: Check for updates
         run: |
+          # Git config - overwrite modules
+          git config --global pull.rebase true
           # Makes sure any pre-installed sub-modules are updated passively
-          git submodule update --init --recursive --checkout --quiet --rebase
+          git submodule update --init --recursive --checkout --quiet
           
           # Ensure we have the directory for the sub-modules
           echo "Checking for N64 repository..."
