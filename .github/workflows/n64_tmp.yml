@@ -248,11 +248,11 @@ jobs:
           elif ${{runner.os == 'macos'}}; then
             FI="bin/N64/macos.zip"
           fi
-            
-          git add "$FI"
+          
           git stash
           git pull --rebase
           git stash pop
+          git add "$FI"
           git checkout --ours -- "$FI"
 
       - name: Commit & push package
