@@ -150,6 +150,8 @@ jobs:
           cp -a "N64/mupen64plus-video-gliden64/ini/." "N64/tmp/consoles/n64/emulator/"
           
           if ${{runner.os == 'macos'}}; then
+            cd "N64/tmp/consoles/n64/emulator/"
+            
             # mupen64plus-audio-sdl
             install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-audio-sdl.dylib"
             install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-audio-sdl.dylib"
@@ -175,12 +177,12 @@ jobs:
             install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-video-angrylion-plus.dylib"
             
             # mupen64plus-video-glide64mk2
-            NO
-            install_name_tool -change "/usr/lib/libz.1.dylib" "@executable_path/consoles/n64/emulator/libz.1.dylib" "mupen64plus-video-glide64mk2.dylib"
-            install_name_tool -change "/usr/local/opt/libpng/lib/libpng16.16.dylib" "@executable_path/consoles/n64/emulator/libpng16.16.dylib" "mupen64plus-video-glide64mk2.dylib"
-            install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-video-glide64mk2.dylib"
-            install_name_tool -change "/usr/local/opt/boost/lib/libboost_filesystem-mt.dylib" "@executable_path/consoles/n64/emulator/libboost_filesystem-mt.dylib" "mupen64plus-video-glide64mk2.dylib"
-            install_name_tool -change "/usr/local/opt/boost/lib/libboost_system-mt.dylib" "@executable_path/consoles/n64/emulator/libboost_system-mt.dylib" "mupen64plus-video-glide64mk2.dylib"
+            #NO
+            #install_name_tool -change "/usr/lib/libz.1.dylib" "@executable_path/consoles/n64/emulator/libz.1.dylib" "mupen64plus-video-glide64mk2.dylib"
+            #install_name_tool -change "/usr/local/opt/libpng/lib/libpng16.16.dylib" "@executable_path/consoles/n64/emulator/libpng16.16.dylib" "mupen64plus-video-glide64mk2.dylib"
+            #install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-video-glide64mk2.dylib"
+            #install_name_tool -change "/usr/local/opt/boost/lib/libboost_filesystem-mt.dylib" "@executable_path/consoles/n64/emulator/libboost_filesystem-mt.dylib" "mupen64plus-video-glide64mk2.dylib"
+            #install_name_tool -change "/usr/local/opt/boost/lib/libboost_system-mt.dylib" "@executable_path/consoles/n64/emulator/libboost_system-mt.dylib" "mupen64plus-video-glide64mk2.dylib"
             
             # mupen64plus-video-gliden64
             install_name_tool -change "/usr/local/opt/freetype/lib/libfreetype.6.dylib" "@executable_path/consoles/n64/emulator/libfreetype.6.dylib" "mupen64plus-video-gliden64.dylib"
@@ -209,16 +211,16 @@ jobs:
             install_name_tool -change "/usr/local/opt/freetype/lib/libfreetype.6.dylib" "@executable_path/consoles/n64/emulator/libfreetype.6.dylib" "mupen64plus.dylib"
             
             # COPY FILES
-            cp "/usr/local/opt/boost/lib/libboost_filesystem-mt.dylib" "N64/tmp/consoles/n64/emulator/libboost_filesystem-mt.dylib"
-            cp "/usr/local/opt/boost/lib/libboost_system-mt.dylib" "N64/tmp/consoles/n64/emulator/libboost_system-mt.dylib"
-            cp "/usr/lib/libz.1.dylib" "N64/tmp/consoles/n64/emulator/libc++.1.dylib"
-            cp "/usr/local/opt/freetype/lib/libfreetype.6.dylib" "N64/tmp/consoles/n64/emulator/libfreetype.6.dylib"
-            cp "/usr/local/opt/glew/lib/libGLEW.2.2.dylib" "N64/tmp/consoles/n64/emulator/libGLEW.2.2.dylib"
-            cp "/usr/local/opt/libpng/lib/libpng16.16.dylib" "N64/tmp/consoles/n64/emulator/libpng16.16.dylib"
-            cp "/usr/local/opt/libsamplerate/lib/libsamplerate.0.dylib" "N64/tmp/consoles/n64/emulator/libsamplerate.0.dylib"
-            cp "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "N64/tmp/consoles/n64/emulator/libSDL2-2.0.0.dylib"
-            cp "/usr/lib/libSystem.B.dylib" "N64/tmp/consoles/n64/emulator/libSystem.B.dylib"
-            cp "/usr/lib/libz.1.dylib" "N64/tmp/consoles/n64/emulator/libz.1.dylib"
+            #cp "/usr/local/opt/boost/lib/libboost_filesystem-mt.dylib" "./libboost_filesystem-mt.dylib"
+            #cp "/usr/local/opt/boost/lib/libboost_system-mt.dylib" "./libboost_system-mt.dylib"
+            cp "/usr/lib/libz.1.dylib" "./libc++.1.dylib"
+            cp "/usr/local/opt/freetype/lib/libfreetype.6.dylib" "./libfreetype.6.dylib"
+            cp "/usr/local/opt/glew/lib/libGLEW.2.2.dylib" "./libGLEW.2.2.dylib"
+            cp "/usr/local/opt/libpng/lib/libpng16.16.dylib" "./libpng16.16.dylib"
+            cp "/usr/local/opt/libsamplerate/lib/libsamplerate.0.dylib" "./libsamplerate.0.dylib"
+            cp "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "./libSDL2-2.0.0.dylib"
+            cp "/usr/lib/libSystem.B.dylib" "./libSystem.B.dylib"
+            cp "/usr/lib/libz.1.dylib" "./libz.1.dylib"
           fi
       
       - name: Auditing new file collection
