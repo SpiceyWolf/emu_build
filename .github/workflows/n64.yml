@@ -26,6 +26,7 @@ jobs:
         run: |
           # Git config - overwrite modules
           git config --global pull.rebase true
+          git pull --rebase
           
           # Makes sure any pre-installed sub-modules are updated passively
           git submodule update --init --recursive --checkout --quiet
