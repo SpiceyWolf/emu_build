@@ -1,0 +1,260 @@
+name: N64 Builder
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include: [
+          { os: macos-latest, ext: "dylib" }
+        ]
+        
+    runs-on: ${{matrix.os}}
+
+    steps:      
+      - name: Initialize repository
+        uses: actions/checkout@v2
+        with:
+          ref: main
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Setup installation dependencies
+        run: |
+          if ${{runner.os == 'macos'}}; then
+            brew update
+            brew install cmake glew sdl2 sdl2_net freeglut nasm speexdsp libsamplerate boost
+
+            SOURCE=/Library/Developer/CommandLineTools/SDKs
+            TARGET=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
+          
+            for FILE in $(ls $SOURCE); do
+              echo $FILE
+              if [ ! -f "$TARGET/$FILE" ]; then
+                ln -s "$SOURCE/$FILE" "$TARGET/$FILE"
+              fi
+            done
+          fi
+
+      - name: Initializing submodules and creating temporary workspace
+        run: |
+          git submodule update --init --recursive --checkout --quiet
+
+          echo "Confirm we have a bin directory..."
+          if [ ! -d "bin" ]; then
+            mkdir "bin"
+          fi
+          if [ ! -d "bin/N64" ]; then
+            mkdir "bin/N64"
+          fi
+
+          echo "Making temporary repository to create packages in..."
+          mkdir "N64/tmp"
+          mkdir "N64/tmp/consoles"
+          mkdir "N64/tmp/consoles/n64"
+          mkdir "N64/tmp/consoles/n64/emulator"
+
+          # Define a reuseable function
+          echo "
+            LIB=\"\$1\"
+            BIN=\"\$2.${{matrix.ext}}\"
+            cd \"N64/\$LIB/projects/unix\"
+            make all
+            cp \"\$BIN\" \"../../../tmp/consoles/n64/emulator/\$BIN\"
+          " >> N64/tmp/build_plugin.sh
+
+      - name: Building mupen64plus-core
+        run: |
+          sh N64/tmp/build_plugin.sh "mupen64plus-core" "mupen64plus"
+          
+      - name: Building mupen64plus-audio-sdl
+        run: |
+          LIB="mupen64plus-audio-sdl"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-input-sdl
+        run: |
+          LIB="mupen64plus-input-sdl"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-rsp-cxd4-sse2
+        run: |
+          LIB="mupen64plus-rsp-cxd4-sse2"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-rsp-hle
+        run: |
+          LIB="mupen64plus-rsp-hle"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-rsp-z64
+        run: |
+          LIB="mupen64plus-rsp-z64"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-arachnoid
+        run: |
+          if ${{runner.os == 'macos'}}; then exit 0; fi
+          LIB="mupen64plus-video-arachnoid"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-glide64mk2
+        run: |
+          if ${{runner.os == 'macos'}}; then exit 0; fi
+          LIB="mupen64plus-video-glide64mk2"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-rice
+        run: |
+          LIB="mupen64plus-video-rice"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-z64
+        run: |
+          LIB="mupen64plus-video-z64"
+          sh N64/tmp/build_plugin.sh "$LIB" "$LIB"
+          
+      - name: Building mupen64plus-video-gliden64
+        run: |
+          LIB="mupen64plus-video-gliden64"
+          BIN="$LIB.${{matrix.ext}}"
+          cd "N64/$LIB/projects/cmake"
+          cmake -G "Unix Makefiles" -DMUPENPLUSAPI=On "../../src/"
+          make
+          cp "plugin/Release/mupen64plus-video-GLideN64.${{matrix.ext}}" "../../../tmp/consoles/n64/emulator/$BIN"
+          
+      - name: Building mupen64plus-video-angrylion-plus
+        run: |
+          LIB="mupen64plus-video-angrylion-plus"
+          BIN="$LIB.${{matrix.ext}}"
+          mkdir "N64/$LIB/build"
+          cd "N64/$LIB/build"
+          cmake -G "Unix Makefiles" ".."
+          make
+          cp "$BIN" "../../tmp/consoles/n64/emulator/$BIN"
+
+      - name: Auditing files
+        run: |
+          ls "N64/tmp/consoles/n64/emulator"
+
+      - name: Cloning data folder contents
+        run: |
+          cp -a "N64/mupen64plus-core/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-input-sdl/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-video-rice/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-video-glide64mk2/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-video-glide64mk2/data/." "N64/tmp/consoles/n64/emulator/"
+          cp -a "N64/mupen64plus-video-gliden64/ini/." "N64/tmp/consoles/n64/emulator/"
+          
+          if ${{runner.os == 'macos'}}; then
+            # mupen64plus-audio-sdl
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-audio-sdl.dylib"
+            install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-audio-sdl.dylib"
+            install_name_tool -change "/usr/local/opt/speexdsp/lib/libspeexdsp.1.dylib" "@executable_path/consoles/n64/emulator/libspeexdsp.1.dylib" "mupen64plus-audio-sdl.dylib"
+            install_name_tool -change "/usr/local/opt/libsamplerate/lib/libsamplerate.0.dylib" "@executable_path/consoles/n64/emulator/libsamplerate.0.dylib" "mupen64plus-audio-sdl.dylib"
+            
+            # mupen64plus-input-sdl
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-input-sdl.dylib"
+            install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-input-sdl.dylib"
+            
+            # mupen64plus-rsp-cxd4-sse2
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-rsp-cxd4-sse2.dylib"
+            
+            # mupen64plus-rsp-hle
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-rsp-hle.dylib"
+            
+            # mupen64plus-rsp-z64
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-rsp-z64.dylib"
+            install_name_tool -change "/usr/lib/libc++.1.dylib" "@executable_path/consoles/n64/emulator/libc++.1.dylib" "mupen64plus-rsp-z64.dylib"
+            
+            # mupen64plus-video-angrylion-plus
+            install_name_tool -change "/usr/lib/libc++.1.dylib" "@executable_path/consoles/n64/emulator/libc++.1.dylib" "mupen64plus-video-angrylion-plus.dylib"
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-video-angrylion-plus.dylib"
+            
+            # mupen64plus-video-glide64mk2
+            NO
+            install_name_tool -change "/usr/lib/libz.1.dylib" "@executable_path/consoles/n64/emulator/libz.1.dylib" "mupen64plus-video-glide64mk2.dylib"
+            install_name_tool -change "/usr/local/opt/libpng/lib/libpng16.16.dylib" "@executable_path/consoles/n64/emulator/libpng16.16.dylib" "mupen64plus-video-glide64mk2.dylib"
+            install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-video-glide64mk2.dylib"
+            install_name_tool -change "/usr/local/opt/boost/lib/libboost_filesystem-mt.dylib" "@executable_path/consoles/n64/emulator/libboost_filesystem-mt.dylib" "mupen64plus-video-glide64mk2.dylib"
+            install_name_tool -change "/usr/local/opt/boost/lib/libboost_system-mt.dylib" "@executable_path/consoles/n64/emulator/libboost_system-mt.dylib" "mupen64plus-video-glide64mk2.dylib"
+            
+            # mupen64plus-video-gliden64
+            install_name_tool -change "/usr/local/opt/freetype/lib/libfreetype.6.dylib" "@executable_path/consoles/n64/emulator/libfreetype.6.dylib" "mupen64plus-video-gliden64.dylib"
+            install_name_tool -change "/usr/local/opt/libpng/lib/libpng16.16.dylib" "@executable_path/consoles/n64/emulator/libpng16.16.dylib" "mupen64plus-video-gliden64.dylib"
+            install_name_tool -change "/usr/lib/libz.1.dylib" "@executable_path/consoles/n64/emulator/libz.1.dylib" "mupen64plus-video-gliden64.dylib"
+            install_name_tool -change "/usr/lib/libc++.1.dylib" "@executable_path/consoles/n64/emulator/libc++.1.dylib" "mupen64plus-video-gliden64.dylib"
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-video-gliden64.dylib"
+            
+            # mupen64plus-video-rice
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-video-rice.dylib"
+            install_name_tool -change "/usr/local/opt/libpng/lib/libpng16.16.dylib" "@executable_path/consoles/n64/emulator/libpng16.16.dylib" "mupen64plus-video-rice.dylib"
+            install_name_tool -change "/usr/lib/libz.1.dylib" "@executable_path/consoles/n64/emulator/libz.1.dylib" "mupen64plus-video-rice.dylib"
+            install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-video-rice.dylib"
+            install_name_tool -change "/usr/lib/libc++.1.dylib" "@executable_path/consoles/n64/emulator/libc++.1.dylib" "mupen64plus-video-rice.dylib"
+            
+            # mupen64plus-video-z64
+            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles/n64/emulator/libSystem.B.dylib" "mupen64plus-video-z64.dylib"
+            install_name_tool -change "/usr/local/opt/glew/lib/libGLEW.2.2.dylib" "@executable_path/consoles/n64/emulator/libGLEW.2.2.dylib" "mupen64plus-video-z64.dylib"
+            install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-video-z64.dylib"
+            install_name_tool -change "/usr/lib/libc++.1.dylib" "@executable_path/consoles/n64/emulator/libc++.1.dylib" "mupen64plus-video-z64.dylib"
+            
+            # mupen64plus
+            install_name_tool -change "/usr/lib/libz.1.dylib" "@executable_path/consoles/n64/emulator/libz.1.dylib" "mupen64plus.dylib"
+            install_name_tool -change "/usr/local/opt/libpng/lib/libpng16.16.dylib" "@executable_path/consoles/n64/emulator/libpng16.16.dylib" "mupen64plus.dylib"
+            install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus.dylib"
+            install_name_tool -change "/usr/local/opt/freetype/lib/libfreetype.6.dylib" "@executable_path/consoles/n64/emulator/libfreetype.6.dylib" "mupen64plus.dylib"
+            
+            # COPY FILES
+            cp "/usr/local/opt/boost/lib/libboost_filesystem-mt.dylib" "N64/tmp/consoles/n64/emulator/libboost_filesystem-mt.dylib"
+            cp "/usr/local/opt/boost/lib/libboost_system-mt.dylib" "N64/tmp/consoles/n64/emulator/libboost_system-mt.dylib"
+            cp "/usr/lib/libz.1.dylib" "N64/tmp/consoles/n64/emulator/libc++.1.dylib"
+            cp "/usr/local/opt/freetype/lib/libfreetype.6.dylib" "N64/tmp/consoles/n64/emulator/libfreetype.6.dylib"
+            cp "/usr/local/opt/glew/lib/libGLEW.2.2.dylib" "N64/tmp/consoles/n64/emulator/libGLEW.2.2.dylib"
+            cp "/usr/local/opt/libpng/lib/libpng16.16.dylib" "N64/tmp/consoles/n64/emulator/libpng16.16.dylib"
+            cp "/usr/local/opt/libsamplerate/lib/libsamplerate.0.dylib" "N64/tmp/consoles/n64/emulator/libsamplerate.0.dylib"
+            cp "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "N64/tmp/consoles/n64/emulator/libSDL2-2.0.0.dylib"
+            cp "/usr/lib/libSystem.B.dylib" "N64/tmp/consoles/n64/emulator/libSystem.B.dylib"
+            cp "/usr/lib/libz.1.dylib" "N64/tmp/consoles/n64/emulator/libz.1.dylib"
+          fi
+      
+      - name: Auditing new file collection
+        run: |
+          ls "N64/tmp/consoles/n64/emulator"
+    
+      - name: Generate package
+        run: |
+          cd "N64/tmp"
+
+          if ${{runner.os == 'linux'}}; then
+            tar -czf "../../bin/N64/linux.tar.gz" "consoles"
+          elif ${{runner.os == 'macos'}}; then
+            zip -r "../../bin/N64/macos.zip" "consoles"
+          fi
+
+      - name: Cleaning up files
+        run: |
+          rm -r "N64/tmp"
+
+      - name: Pull and Stage changes
+        run: |
+          if ${{runner.os == 'linux'}}; then
+            FI="bin/N64/linux.tar.gz"
+          elif ${{runner.os == 'macos'}}; then
+            FI="bin/N64/macos.zip"
+          fi
+            
+          git add "$FI"
+          git stash
+          git pull --rebase
+          git stash pop
+          git checkout --ours -- "$FI"
+
+      - name: Commit & push package
+        uses: actions-js/push@master
+        with:
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          message: "Updated N64 packages."
