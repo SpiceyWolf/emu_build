@@ -24,8 +24,8 @@ jobs:
       - id: update
         name: Check for updates
         run: |
-          # Git config - overwrite modules
-          git config --global pull.rebase true
+          # Rebase repository for clean changes pull
+          git reset --hard
           git pull --rebase
           
           # Makes sure any pre-installed sub-modules are updated passively
@@ -292,11 +292,11 @@ jobs:
           elif ${{runner.os == 'macos'}}; then
             FI="bin/N64/macos.zip"
           fi
-            
-          git add "$FI"
+          
           git stash
           git pull --rebase
           git stash pop
+          git add "$FI"
           git checkout --ours -- "$FI"
 
       - name: Commit & push package
