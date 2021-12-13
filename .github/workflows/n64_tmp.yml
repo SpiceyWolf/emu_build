@@ -1,4 +1,4 @@
-name: N64 Builder
+name: Mac N64 Builder
 
 on:
   workflow_dispatch:
