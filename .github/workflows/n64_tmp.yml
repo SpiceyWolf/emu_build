@@ -144,7 +144,6 @@ jobs:
           cp -a "N64/mupen64plus-video-rice/data/." "N64/tmp/consoles.app/n64/emulator/"
           cp -a "N64/mupen64plus-video-glide64mk2/data/." "N64/tmp/consoles.app/n64/emulator/"
           cp -a "N64/mupen64plus-video-glide64mk2/data/." "N64/tmp/consoles.app/n64/emulator/"
-          cp -a "N64/mupen64plus-video-gliden64/ini/." "N64/tmp/consoles.app/n64/emulator/"
           
           if ${{runner.os == 'macos'}}; then
             cd "N64/tmp/consoles.app/n64/emulator/"
@@ -180,13 +179,6 @@ jobs:
             #install_name_tool -change "/usr/local/opt/sdl2/lib/libSDL2-2.0.0.dylib" "@executable_path/consoles.app/n64/emulator/libSDL2-2.0.0.dylib" "mupen64plus-video-glide64mk2.dylib"
             #install_name_tool -change "/usr/local/opt/boost/lib/libboost_filesystem-mt.dylib" "@executable_path/consoles.app/n64/emulator/libboost_filesystem-mt.dylib" "mupen64plus-video-glide64mk2.dylib"
             #install_name_tool -change "/usr/local/opt/boost/lib/libboost_system-mt.dylib" "@executable_path/consoles.app/n64/emulator/libboost_system-mt.dylib" "mupen64plus-video-glide64mk2.dylib"
-            
-            # mupen64plus-video-gliden64
-            install_name_tool -change "/usr/local/opt/freetype/lib/libfreetype.6.dylib" "@executable_path/consoles.app/n64/emulator/libfreetype.6.dylib" "mupen64plus-video-gliden64.dylib"
-            install_name_tool -change "/usr/local/opt/libpng/lib/libpng16.16.dylib" "@executable_path/consoles.app/n64/emulator/libpng16.16.dylib" "mupen64plus-video-gliden64.dylib"
-            install_name_tool -change "/usr/lib/libz.1.dylib" "@executable_path/consoles.app/n64/emulator/libz.1.dylib" "mupen64plus-video-gliden64.dylib"
-            install_name_tool -change "/usr/lib/libc++.1.dylib" "@executable_path/consoles.app/n64/emulator/libc++.1.dylib" "mupen64plus-video-gliden64.dylib"
-            install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles.app/n64/emulator/libSystem.B.dylib" "mupen64plus-video-gliden64.dylib"
             
             # mupen64plus-video-rice
             install_name_tool -change "/usr/lib/libSystem.B.dylib" "@executable_path/consoles.app/n64/emulator/libSystem.B.dylib" "mupen64plus-video-rice.dylib"
