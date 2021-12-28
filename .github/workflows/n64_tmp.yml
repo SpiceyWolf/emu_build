@@ -122,9 +122,6 @@ jobs:
           LIB="mupen64plus-video-gliden64"
           BIN="$LIB.${{matrix.ext}}"
           cd "N64/$LIB/projects/cmake"
-          cmake -G "Unix Makefiles" -DMUPENPLUSAPI=On "../../src/"
-          make
-          cp "plugin/Release/mupen64plus-video-GLideN64.${{matrix.ext}}" "../../../tmp/consoles.app/n64/emulator/$BIN"
           
       - name: Building mupen64plus-video-angrylion-plus
         run: |
