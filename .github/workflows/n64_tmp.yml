@@ -223,7 +223,7 @@ jobs:
           if ${{runner.os == 'linux'}}; then
             tar -czf "../../bin/N64/linux.tar.gz" "consoles"
           elif ${{runner.os == 'macos'}}; then
-            zip -r "../../bin/N64/macos.zip" "consoles"
+            zip -r "../../bin/N64/macos.zip" "consoles.app"
           fi
 
       - name: Cleaning up files
